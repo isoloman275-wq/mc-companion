@@ -1,0 +1,44 @@
+{
+  "androidNavigationBar": { "backgroundColor": "#0a0e0a", "barStyle": "light-content" },
+  "androidStatusBar": { "backgroundColor": "#0a0e0a", "translucent": false },
+  "expo": {
+    "name": "MC Companion",
+    "slug": "mc-companion",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0e0a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.nz1labs.mccompanion",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.nz1labs.mccompanion",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0e0a"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "12ec22a8-c7a4-4f75-87c8-5d2668830ed3"
+      }
+    },
+    "owner": "nz1labs",
+    "plugins": ["./plugins/withNetworkSecurityConfig"]
+  }
+}
