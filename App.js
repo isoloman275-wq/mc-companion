@@ -4,6 +4,7 @@ import {
   ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView,
   ActivityIndicator, RefreshControl, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /* ----------------------------------------------------------------------------
  * Mission Control — Expo companion
@@ -27,6 +28,15 @@ export default function App() {
   const [base, setBase] = useState(DEFAULT_BASE);
   const [tab, setTab] = useState('dash');
   const [conn, setConn] = useState({ ok: null, ts: null });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem('mc_base_url');
+        if (saved) setBase(saved);
+      } catch { /* keep DEFAULT_BASE */ }
+    })();
+  }, []);
 
   const api = useCallback(async (path, opts) => {
     const url = base.replace(/\/+$/, '') + path;
@@ -56,6 +66,7 @@ export default function App() {
         {tab === 'tasks' && <Tasks api={api} />}
         {tab === 'approve' && <Approvals api={api} />}
         {tab === 'logs' && <Logs api={api} />}
+        {tab === 'profiles' && <Profiles api={api} />}
         {tab === 'settings' && <Settings base={base} setBase={setBase} />}
       </View>
     </SafeAreaView>
@@ -67,6 +78,7 @@ const TABS = [
   { k: 'tasks', l: 'Tasks' },
   { k: 'approve', l: 'Approvals' },
   { k: 'logs', l: 'Logs' },
+  { k: 'profiles', l: 'Profiles' },
   { k: 'settings', l: 'Set' },
 ];
 
@@ -247,6 +259,28 @@ function Approvals({ api }) {
   );
 }
 
+function Profiles({ api }) {
+  const { data, err, loading, refreshing, reload, setRefreshing } = usePoller(api, '/api/profiles');
+  const list = Array.isArray(data) ? data : (data && (data.profiles || data.items)) || [];
+  return (
+    <ScrollView style={styles.scroll}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); reload(); }} />}>
+      {loading && <Centered><ActivityIndicator /></Centered>}
+      {err && <ErrBox msg={err} />}
+      <Section title={`PROFILES (${list.length})`}>
+        {list.map((p, i) => (
+          <Card key={i}>
+            {Object.entries(p).map(([k, v]) => (
+              <Row key={k} k={k} v={Array.isArray(v) ? v.join(', ') : (v == null ? '—' : String(v))} />
+            ))}
+          </Card>
+        ))}
+        {!loading && list.length === 0 && !err && <Text style={styles.muted}>no profiles</Text>}
+      </Section>
+    </ScrollView>
+  );
+}
+
 function Logs({ api }) {
   const { data, err, loading, refreshing, reload, setRefreshing } = usePoller(api, '/api/logs/operator');
   return (
@@ -266,6 +300,20 @@ function Logs({ api }) {
 
 function Settings({ base, setBase }) {
   const [v, setV] = useState(base);
+  const [test, setTest] = useState(null); // {ok, ms, detail}
+
+  const runTest = async () => {
+    setTest({ ok: null });
+    const t0 = Date.now();
+    try {
+      const r = await fetch(base.replace(/\/+$/, '') + '/api/state', { method: 'GET' });
+      await r.text();
+      setTest({ ok: r.ok, ms: Date.now() - t0, detail: r.ok ? 'reachable' : `HTTP ${r.status}` });
+    } catch (e) {
+      setTest({ ok: false, ms: Date.now() - t0, detail: String(e) });
+    }
+  };
+
   return (
     <ScrollView style={styles.scroll}>
       <Section title="MC BASE URL">
@@ -273,9 +321,21 @@ function Settings({ base, setBase }) {
           <Text style={styles.label}>Reachable MC endpoint</Text>
           <Input placeholder="http://host:8777" value={v} onChange={setV} />
           <Text style={styles.muted}>Physical phone: forward <lan-host-ip>:8777 → WSL, then use that IP.{'\n'}Emulator: adb reverse tcp:8777 tcp:8777, use http://10.0.2.2:8777</Text>
-          <TouchableOpacity style={styles.btn} onPress={() => setBase(v.trim() || DEFAULT_BASE)}>
+          <TouchableOpacity style={styles.btn} onPress={() => {
+            const next = v.trim() || DEFAULT_BASE;
+            setBase(next);
+            AsyncStorage.setItem('mc_base_url', next).catch(() => {});
+          }}>
             <Text style={styles.btnTx}>Save</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.btn} onPress={runTest}>
+            <Text style={styles.btnTx}>{test?.ok === null ? 'Testing…' : 'Test connection'}</Text>
+          </TouchableOpacity>
+          {test && test.ok === null && !test.detail ? null : test && (
+            <Text style={test.ok ? styles.muted : styles.errTx}>
+              {test.ok ? `connected · ${test.ms} ms` : `unreachable · ${test.detail}`}
+            </Text>
+          )}
         </Card>
       </Section>
     </ScrollView>
